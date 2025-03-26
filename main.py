@@ -24,7 +24,7 @@ def read_snappy_parquet(file_path: str) -> DataFrame:
     Returns:
         DataFrame: The Spark DataFrame.
     """
-    spark = SparkSession.builder.appName("ReadSnappyParquet").getOrCreate()
+    spark = SparkSession.builder.appName("MainApp").getOrCreate()
     try:
         df = spark.read.parquet(file_path)
         return df
@@ -226,10 +226,11 @@ if __name__ == "__main__":
         # Clear intermediate columns
         df = clear_pipeline_intermediates(df, config)
         
-        df.sort('company_name').toPandas().to_csv("output_companies.csv")
-        # df[df['website_domain'].isNull()].sort('company_name').toPandas().to_csv("output_companies_null_website.csv")
-        # Write df to .snappy.parquet file
-        # df.write.parquet("output_companies.snappy.parquet")
+        df = df.sort('company_name')
+        df.toPandas().to_csv("output_companies.csv")
+        # Write to snappy parquet
+        df.write.parquet("output_companies.snappy.parquet")
+
     else:
         print("Error reading Parquet file.")
     spark.stop()
