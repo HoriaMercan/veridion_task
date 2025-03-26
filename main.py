@@ -2,7 +2,17 @@ from pyspark.sql import SparkSession, DataFrame
 from pyspark.sql.functions import col, lower, trim, when, lit, \
         concat_ws, sha2, first, udf, coalesce, regexp_replace
 from pyspark.sql.types import StringType
+import json
 from uuid import uuid4
+
+__DEBUG_FLAG = True
+
+def load_config(config_file: str) -> dict:
+    with open(config_file) as f:
+        config = json.load(f)
+        
+    assert 'pipeline_stages' in config, "pipeline_stages not found in config file."
+    return config
 
 def read_snappy_parquet(file_path: str) -> DataFrame:
     """
@@ -67,7 +77,7 @@ def create_combined_address(df: DataFrame) -> DataFrame:
     )
     return df
 
-def generate_entity_id(df: DataFrame, columns: list) -> DataFrame:
+def generate_entity_id(df: DataFrame, columns: list, id: str = "") -> DataFrame:
     """
     Generates a unique entity ID based on the specified columns.
     If a column value is null, it uses uuid4 to generate a unique value for that column,
@@ -95,10 +105,10 @@ def generate_entity_id(df: DataFrame, columns: list) -> DataFrame:
     concatenated_string = concat_ws("", *modified_cols)
 
     # Generate the SHA-256 hash
-    df = df.withColumn("entity_id", sha2(concatenated_string, 256))
+    df = df.withColumn(f"entity_id_{id}", sha2(concatenated_string, 256))
     return df
 
-def group_similar_enitites(df: DataFrame) -> DataFrame:
+def group_similar_enitites(df: DataFrame, id: str = "") -> DataFrame:
     """
     Groups similar entities based on the entity ID.
 
@@ -108,21 +118,22 @@ def group_similar_enitites(df: DataFrame) -> DataFrame:
     Returns:
         DataFrame: The DataFrame with the entity ID column.
     """
-    a_df = df.groupBy("entity_id").count()
+    a_df = df.groupBy(f"entity_id_{id}").count()
     # a_df.show(10)
     return a_df
 
 # Debug function
-def print_grouped_data(df: DataFrame, grouped_df: DataFrame) -> None:
+def print_grouped_data(df: DataFrame, grouped_df: DataFrame, id: str = "") -> None:
     grouped_df = grouped_df.filter(col("count") > 1)
     
-    entities = list(map(lambda x: x['entity_id'], grouped_df.select("entity_id").collect()))
+    entities = list(map(lambda x: x[f"entity_id_{id}"], 
+                        grouped_df.select(f"entity_id_{id}").collect()))
     
-    a = df.filter(col("entity_id").isin(entities))
-    a.sort('entity_id').toPandas().to_csv("output.csv")
+    a = df.filter(col(f"entity_id_{id}").isin(entities))
+    a.sort(f"entity_id_{id}").toPandas().to_csv("output.csv")
 
 
-def group_unique_data(df: DataFrame) -> DataFrame:
+def group_unique_data(df: DataFrame, id = "") -> DataFrame:
     """
     Groups unique entities based on the entity ID.
     If the entity ID is the same, it takes the first value of the column.
@@ -135,11 +146,12 @@ def group_unique_data(df: DataFrame) -> DataFrame:
         DataFrame: The output DataFrame with merged data.
     """
     all_columns = df.columns.copy()
-    all_columns.remove("entity_id")
-    df = df.groupBy("entity_id").agg(
+    all_columns.remove(f"entity_id_{id}")
+    df = df.groupBy(f"entity_id_{id}").agg(
         *[first(x, ignorenulls=True).alias(x) for x in all_columns]
     )
     return df
+
 
 # Debug Function
 def search_all_outputs_with_name(df: DataFrame, name: str) -> DataFrame:
@@ -155,6 +167,49 @@ def search_all_outputs_with_name(df: DataFrame, name: str) -> DataFrame:
     """
     return df.filter(col("company_name") == (name))
 
+
+def pipeline(df: DataFrame, config: dict) -> DataFrame:
+    """
+    Runs the data processing pipeline on the input DataFrame.
+
+    Args:
+        df (DataFrame): The input DataFrame.
+        config (dict): The configuration dictionary.
+
+    Returns:
+        DataFrame: The output DataFrame.
+    """
+    # Clean the data
+    df = clean_data(df)
+
+    # Create combined address
+    df = create_combined_address(df)
+
+    # Generate entity IDs
+    for pipeline_stage_id, stage in config['pipeline_stages'].items():
+        df = generate_entity_id(df, stage, pipeline_stage_id)
+
+        # DEBUG: See how many entities are resulted
+        if __DEBUG_FLAG:
+            grouped_df = group_similar_enitites(df, pipeline_stage_id)
+            print("Created ", grouped_df.count(), " groups of duplicates out of ", df.count(), " records.")
+
+        # Group unique data
+        df = group_unique_data(df, pipeline_stage_id)
+
+    return df
+
+def clear_pipeline_intermediates(df: DataFrame, config: dict):
+    config_fields = ['cleaned_company_name', 
+                     'cleaned_country_code', 
+                     'combined_address']
+    config_fields.extend(
+        [f'entity_id_{id}' for id in config['pipeline_stages'].keys()])
+    print(config_fields)
+    for col_name in config_fields:
+        df = df.drop(col_name)
+    return df
+
 if __name__ == "__main__":
     file_path = "veridion_entity_resolution_challenge.snappy.parquet"
     
@@ -164,72 +219,15 @@ if __name__ == "__main__":
     df = read_snappy_parquet(file_path)
     
     if df is not None:
-        # Clean the data
-        df = clean_data(df)
+        config = load_config("config.json")
+
+        df = pipeline(df, config)
         
-        # Create combined address
-        df = create_combined_address(df)
-        
-        # Define columns for entity ID generation
-        merge_pipeline_vec = [
-        [
-            "cleaned_company_name",
-            "combined_address",
-            "cleaned_country_code",
-            # "website_domain",
-            # "primary_phone"
-        ], 
-        [
-            'company_legal_names',
-            'cleaned_country_code',
-            # 'website_domain',
-        ], 
-        [
-            'cleaned_company_name',
-            'facebook_url', 
-        ],
-        [
-            'cleaned_company_name',
-            'main_country_code'
-        ],
-        [
-            'website_domain',
-        ],
-        [
-            'facebook_url',
-        ],
-        [
-            'twitter_url'
-        ],
-        [
-            'linkedin_url'
-        ]
-        ]
-        
-        for entity_id_columns in merge_pipeline_vec:
-            # Generate entity IDs
-            df = generate_entity_id(df, entity_id_columns)
-            
-            # Print the schema to verify the new column
-            # df.printSchema()
-            
-            # Show some results
-            # df.select("company_name", "cleaned_company_name", "combined_address").show(truncate=False)
-            
-            # Group by entity_id to identify unique companies and their duplicates
-            grouped_df = group_similar_enitites(df)
-            # grouped_df.show(truncate=False)
-            print("Created ", grouped_df.count(), " groups of duplicates out of ", df.count(), " records.")
-            df = group_unique_data(df)
-            df.drop('entity_id')
-        
-        
-        # search_all_outputs_with_name(df, "Kanzlei Thimm")
-        df = df.drop('entity_id')
-        # Drop the 'entity_id' column
+        # Clear intermediate columns
+        df = clear_pipeline_intermediates(df, config)
         
         df.sort('company_name').toPandas().to_csv("output_companies.csv")
-        df[df['website_domain'].isNull()].sort('company_name').toPandas().to_csv("output_companies_null_website.csv")
+        # df[df['website_domain'].isNull()].sort('company_name').toPandas().to_csv("output_companies_null_website.csv")
         # Write df to .snappy.parquet file
         # df.write.parquet("output_companies.snappy.parquet")
     else:

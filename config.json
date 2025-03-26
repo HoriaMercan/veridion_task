@@ -1,0 +1,33 @@
+{
+    "pipeline_stages": {
+        "1": [
+            "cleaned_company_name",
+            "combined_address",
+            "cleaned_country_code"
+        ],
+        "2": [
+            "company_legal_names",
+            "cleaned_country_code"
+        ],
+        "3": [
+            "cleaned_company_name",
+            "cleaned_country_code"
+        ],
+        "4": [
+            "cleaned_company_name",
+            "main_country_code"
+        ],
+        "5": [
+            "website_domain"
+        ],
+        "6": [
+            "facebook_url"
+        ],
+        "7": [
+            "twitter_url"
+        ],
+        "8": [
+            "linkedin_url"
+        ]
+    }
+}
