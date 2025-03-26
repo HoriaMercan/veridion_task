@@ -1,0 +1,11 @@
+/.venv
+/__pycache__
+/df_diff.csv
+/df_final_names.csv
+/df_init_names.csv
+/embeddings_main.py
+/input_cleared.csv
+/output_companies.snappy.parquet
+/output_companies_null_website.csv
+/test_coverage.py
+/veridion_entity_resolution_challenge.snappy.parquet
