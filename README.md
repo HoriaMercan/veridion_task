@@ -15,9 +15,9 @@ Two entities that share the same values among the attributes aforementioned are 
 
 That being considered, I propose a solution with multiple stages of merging among the entities. I created a pipeline that merges entities based on different combinations of key attributes that should be considered. All the combinations are described in the **config.json**  file. Any pipeline stage is described there as:
 ```json
-    stage_id : [
-        ... list of common attributes that ensure equivalency of two different entities ...
-    ]
+
+    stage_id : 
+        list of common attributes that ensure equivalency of two different entities
 ```
 
 **In essence, the solution works by:**
