@@ -41,3 +41,9 @@ Initially, I make sure that all the data are cleaned (remove redundant spaces fr
 Then, for each step in the pipeline, I take certain columns, concatenate them and create sha2 encodings. By doing this, I assure uniqueness of the encoding, 2 entities with same attribute values will have the same encoding. Also, I was thinking of using this for the ability to calculate it twice and be able to scale it if I would get online entities for this pipeline. 
 
 I group data with same sha2 encoding and make the assumption that they are the same. This would ensure me correctness (by the attributes that I choose in the config.json file). I respect as much as possible of all the data available when merging (if an entity has non-null website_domain and another has non-null linkedin_url, in the end the resulting entity would have both of them => creation of better data).
+
+
+# Coverage of chosen columns:
+ {'cleaned_company_name': '14589 / 32617', 'main_country_code': '31393 / 31415', 'facebook_url': '7771 / 11365', 'website_domain': '28528 / 31678', 'cleaned_country_code': '31393 / 31415', 'combined_address': '16199 / 33446', 'linkedin_url': '8185 / 10381', 'company_legal_names': '4171 / 6890', 'twitter_url': '2540 / 3005'}
+
+ {'main_country_code': '31391 / 31415', 'twitter_url': '2457 / 3005', 'facebook_url': '7394 / 11365', 'main_address_raw_text': '7297 / 27417', 'company_legal_names': '3929 / 6890', 'linkedin_url': '7767 / 10381', 'company_commercial_names': '11380 / 28121', 'cleaned_country_code': '31391 / 31415', 'cleaned_company_name': '13766 / 32617', 'combined_address': '15233 / 33446', 'website_domain': '27092 / 31678', 'main_postcode': '15304 / 23820'}

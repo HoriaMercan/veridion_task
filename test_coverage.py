@@ -1,6 +1,10 @@
 import unittest
 from pyspark.sql import SparkSession, DataFrame
 from pyspark.sql.functions import col, lower, trim, when, lit, concat_ws, sha2, first, udf, coalesce
+from pyspark.sql.types import StringType, BooleanType
+
+import warnings
+warnings.simplefilter(action='ignore', category=FutureWarning)
 
 from main import create_combined_address, clean_data
 import json
@@ -20,9 +24,9 @@ class TestCoverage(unittest.TestCase):
         self.df_final = create_combined_address(clean_data(self.df_final))
         
     def test_all_entities_are_represented(self):
+
         # Test that all companies in the input data are represented in the output data
         # We will test that all entities are represented by one relevant column in the output
-        
         relevant_columns = []
         with open("config.json") as f:
             config = json.load(f)
@@ -61,6 +65,31 @@ class TestCoverage(unittest.TestCase):
         # We expect that all the elements in the final df are in any form in the initial df
         self.assertEqual(df_init_copy.count(), 0)
         print({col: f"{how_much_coverage[col]} / {total_non_null_columns_elem[col]}" for col in relevant_columns})
+        
+    def duplicates_on_col(self, col_name: str):
+        
+        def non_void_string(s: str):
+            return s is not None and s != ""
+        
+        udf_non_void_string = udf(non_void_string, BooleanType())
+        df_duplicated_addressed = self.df_final\
+            .filter(udf_non_void_string(col(col_name)))\
+            .groupBy(col_name).count().filter(col("count") > 1)
+            
+        list_col_vals = list(map(lambda x: x[col_name], df_duplicated_addressed.select(col_name).collect()))
+        df_duplicated_addressed = self.df_final.filter(col(col_name).isin(list_col_vals))\
+            .select(*self.df_final.columns)
+        return df_duplicated_addressed
+    
+    def test_duplicates_address(self):
+        new_df = self.duplicates_on_col("combined_address")
+        print("Result on addresses: ", new_df.count())
+        new_df.toPandas().to_csv("duplicates_on_combined_address.csv", index=False)
+        
+    def test_duplicates_company_names(self):
+        new_df = self.duplicates_on_col("company_commercial_names")
+        print("Result on commercial_names: ", new_df.count())
+        new_df.toPandas().to_csv("duplicates_on_company_commercial_names.csv", index=False)
         
 if __name__ == '__main__':
     unittest.main()

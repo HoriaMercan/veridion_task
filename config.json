@@ -26,8 +26,19 @@
         "7": [
             "twitter_url"
         ],
+        "9": [
+            "main_address_raw_text"
+        ],
         "8": [
             "linkedin_url"
+        ],
+        "10": [
+            "company_commercial_names",
+            "cleaned_company_name"
+        ],
+        "11": [
+            "combined_address",
+            "main_postcode"
         ]
     }
 }

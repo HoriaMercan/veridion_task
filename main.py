@@ -73,7 +73,9 @@ def create_combined_address(df: DataFrame) -> DataFrame:
     """
     df = df.withColumn(
         "combined_address",
-        concat_ws(", ", lower(trim(col("main_street"))), lower(trim(col("main_city"))), lower(trim(col("main_country"))))
+        concat_ws(", ", lower(trim(col("main_street"))), 
+                  lower(trim(col("main_city"))), 
+                  lower(trim(col("main_country"))))
     )
     return df
 
@@ -229,7 +231,7 @@ if __name__ == "__main__":
         df = df.sort('company_name')
         df.toPandas().to_csv("output_companies.csv")
         # Write to snappy parquet
-        df.write.parquet("output_companies.snappy.parquet", mode="overwrite", compression="snappy")
+        # df.write.parquet("output_companies.snappy.parquet", mode="overwrite", compression="snappy")
 
     else:
         print("Error reading Parquet file.")
