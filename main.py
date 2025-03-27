@@ -58,7 +58,7 @@ def clean_data(df: DataFrame) -> DataFrame:
     for column in to_be_cleared_columns:
         df = df.withColumn(column, when(col(column).contains("\n"), lit("")).otherwise(col(column)))
     
-    df.sort('company_name').toPandas().to_csv("input_cleared.csv")
+    # df.sort('company_name').toPandas().to_csv("input_cleared.csv")
     return df
 
 def create_combined_address(df: DataFrame) -> DataFrame:
@@ -229,7 +229,7 @@ if __name__ == "__main__":
         df = df.sort('company_name')
         df.toPandas().to_csv("output_companies.csv")
         # Write to snappy parquet
-        df.write.parquet("output_companies.snappy.parquet")
+        df.write.parquet("output_companies.snappy.parquet", mode="overwrite", compression="snappy")
 
     else:
         print("Error reading Parquet file.")
