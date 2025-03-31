@@ -1,9 +1,12 @@
 from pyspark.sql import SparkSession, DataFrame
 from pyspark.sql.functions import col, lower, trim, when, lit, \
-        concat_ws, sha2, first, udf, coalesce, regexp_replace
-from pyspark.sql.types import StringType
+        concat_ws, sha2, first, udf, coalesce, regexp_replace, \
+            explode, count, array_contains
+from pyspark.sql.types import StringType, ArrayType
 import json
 from uuid import uuid4
+
+from re import split as re_split
 
 __DEBUG_FLAG = True
 
@@ -154,6 +157,46 @@ def group_unique_data(df: DataFrame, id = "") -> DataFrame:
     )
     return df
 
+def split_column_into_list(df: DataFrame, column: str) -> DataFrame:
+    """
+    Splits a column into a list of values.
+
+    Args:
+        df (DataFrame): The input DataFrame.
+        column (str): The column to split.
+
+    Returns:
+        DataFrame: The DataFrame with the split column.
+    """
+    
+    def split_string(s: str):
+        if s is not None:
+            return list(map(lambda x: x.strip(), re_split(r"[|-]+", s)))
+        
+    
+    df = df.withColumn(column + "_list",
+                       udf(split_string, ArrayType(StringType()))(
+                           regexp_replace(trim(lower(col(column))),
+                                          "[^a-zA-Z0-9\|\\s]", "")
+                       ))
+    return df
+
+def get_duplicated_legal_names(df: DataFrame) -> list[str]:
+    """
+    Gets all unique company legal names from the DataFrame that have duplicates.
+
+    Args:
+        df (DataFrame): The input DataFrame.
+
+    Returns:
+        list: A list of unique company legal names.
+    """
+    exploded_df = df.filter(col('company_legal_names_list').isNotNull())\
+        .select(explode(col('company_legal_names_list')).alias('element'))\
+            .groupBy('element').agg(count('*').alias('dupl_count'))\
+                .filter(col('dupl_count') > 1)
+            
+    return exploded_df.select('element').distinct().rdd.flatMap(lambda x: x).collect()
 
 # Debug Function
 def search_all_outputs_with_name(df: DataFrame, name: str) -> DataFrame:
@@ -201,6 +244,7 @@ def pipeline(df: DataFrame, config: dict) -> DataFrame:
 
     return df
 
+
 def clear_pipeline_intermediates(df: DataFrame, config: dict):
     config_fields = ['cleaned_company_name', 
                      'cleaned_country_code', 
@@ -225,10 +269,26 @@ if __name__ == "__main__":
 
         df = pipeline(df, config)
         
+        
         # Clear intermediate columns
         df = clear_pipeline_intermediates(df, config)
         
         df = df.sort('company_name')
+        df = split_column_into_list(df, 'company_legal_names')
+        
+        # # Outside of the pipeline, we define an operation for merging entities
+        # # with a common company legal name and country code
+        all_legal_names = get_duplicated_legal_names(df)
+        print("All unique company legal names: ", all_legal_names)
+        print(len(all_legal_names), " unique company legal names.")
+        
+         
+        # There are only 64 more possible merges using the company legal names
+        # Obs: All the other pipeline operations are already done.
+        
+        print("Final count of records: ", df.count())
+        
+        # print("All unique company legal names: ", get_duplicated_legal_names(df))
         df.toPandas().to_csv("output_companies.csv")
         # Write to snappy parquet
         # df.write.parquet("output_companies.snappy.parquet", mode="overwrite", compression="snappy")

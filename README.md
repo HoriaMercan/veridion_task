@@ -35,6 +35,7 @@ I used the Spark framework in Python for analysing the data. Some key points for
 * It's fast and can be easily used with .snappy.parquet and .csv formats
 * Spark DataFrames can be used with user defined functions
 * Can easily group data
+* Reduced the dataset from 33k to 5.5k
 
 Initially, I make sure that all the data are cleaned (remove redundant spaces from attributes, transform everything to lower case and delete possible typos of commas, points, etc) in the function **clean_data(DataFrame) -> Dataframe**. Also, I want to create new fields in my dataset, such as **cleaned_company_name**, **cleaned_country_code** and **combined_address**. Those will be used to detect similar entities. 
 
@@ -47,3 +48,40 @@ I group data with same sha2 encoding and make the assumption that they are the s
  {'cleaned_company_name': '14589 / 32617', 'main_country_code': '31393 / 31415', 'facebook_url': '7771 / 11365', 'website_domain': '28528 / 31678', 'cleaned_country_code': '31393 / 31415', 'combined_address': '16199 / 33446', 'linkedin_url': '8185 / 10381', 'company_legal_names': '4171 / 6890', 'twitter_url': '2540 / 3005'}
 
  {'main_country_code': '31391 / 31415', 'twitter_url': '2457 / 3005', 'facebook_url': '7394 / 11365', 'main_address_raw_text': '7297 / 27417', 'company_legal_names': '3929 / 6890', 'linkedin_url': '7767 / 10381', 'company_commercial_names': '11380 / 28121', 'cleaned_country_code': '31391 / 31415', 'cleaned_company_name': '13766 / 32617', 'combined_address': '15233 / 33446', 'website_domain': '27092 / 31678', 'main_postcode': '15304 / 23820'}
+
+ ## More ideas TBD...
+
+ Using the duplicated elements of comapany legal names, we can merge rows.
+ '''python
+ for name in all_legal_names:
+    group = df.filter(array_contains(col('company_legal_names_list'), name))
+    df = df.filter(~array_contains(col('company_legal_names_list'), name))
+    
+    cols = group.columns.copy()
+    cols.remove('cleaned_country_code')
+    df = df.union(group.groupBy("cleaned_country_code").agg(
+        *[first(x, ignorenulls=True).alias(x) for x in cols]
+    ))
+
+ '''
+
+ This idea might lose coverage and this is the reason for not being included in the solution (merging prioritization might help in making a good decision here).
+
+
+ ## Metrics of pipeline efficiency:
+
+ ```
+ Created  25670  groups of duplicates out of  33446  records.                    
+Created  24451  groups of duplicates out of  25670  records.                    
+Created  18899  groups of duplicates out of  24451  records.
+Created  18897  groups of duplicates out of  18899  records.
+Created  6662  groups of duplicates out of  18897  records.
+Created  6120  groups of duplicates out of  6663  records.
+Created  6043  groups of duplicates out of  6120  records.                      
+Created  5758  groups of duplicates out of  6036  records.                      
+Created  5758  groups of duplicates out of  5769  records.                      
+Created  5673  groups of duplicates out of  5740  records.                      
+Created  5532  groups of duplicates out of  5680  records.
+
+Final count of records:  5548.
+ ```
