@@ -3,6 +3,17 @@
 
 In this Markdown file I will explain the solution for the Entity Resolution Task.
 
+Run main:
+```bash
+  $  python3 main.py
+```
+
+Run test:
+```bash
+  $  python3 test_coverage.py
+```
+
+
 By analysing the initial dataset, we can outline some key attributes that any entity has and can be used for distinguish or merge two entities, as
 1. **company_name**
 2. **main_country_code**
